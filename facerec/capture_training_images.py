@@ -2,7 +2,10 @@
 # ==============================================================================
 # Name: capture_training_images.py
 # Desc: This program is used to capture training images that will be used by
-#   the face recognition program.  
+#   the face recognition program.  The program displays a window with the live
+#   video feed.  Any faces that are detected are showed surrounded by a green
+#   box.  When the user presses the "k" key, the current face is saved as a
+#   unique image in a folder under the "training" folder.
 # Change History:
 # 2015-02-01 JSP: Created.
 # ==============================================================================
@@ -32,16 +35,17 @@ trainingName = sys.argv[1]
 print 'Capturing training images for ' + trainingName
 
 # If a subdirectory by that name doesn't already exist, then create it:
-if not os.path.isdir(trainingName):
-  os.makedirs(trainingName)
-if not os.path.isdir(trainingName):
+folderName = os.path.join('training', trainingName)
+if not os.path.isdir(folderName):
+  os.makedirs(folderName)
+if not os.path.isdir(folderName):
   print 'Unable to create a subdirectory for the training images.'
   quit(1)
 
 # Based on the list of images in the subdirectory (where each file name is
 # an integer number), determine what the next file name should be:
 fileNum = 1
-for fileName in os.listdir(trainingName):
+for fileName in os.listdir(folderName):
   baseName = os.path.basename(fileName)
   if baseName.isdigit() and int(baseName) > fileNum:
     fileNum = int(baseName)
@@ -80,7 +84,7 @@ while True:
     for (x, y, w, h) in faces:
       face_img = gray[y:y+h, x:x+w]
       face_img = cv2.resize(face_img, (100,100), interpolation=cv2.INTER_CUBIC)
-      cv2.imwrite(os.path.join(trainingName, str(fileNum) + '.png'), face_img)
+      cv2.imwrite(os.path.join(folderName, str(fileNum) + '.png'), face_img)
       fileNum = fileNum + 1
     time.sleep(1)
     face_found = False
