@@ -84,6 +84,7 @@ while True:
     for (x, y, w, h) in faces:
       face_img = gray[y:y+h, x:x+w]
       face_img = cv2.resize(face_img, (100,100), interpolation=cv2.INTER_CUBIC)
+      face_img = cv2.equalizeHist(face_img)
       cv2.imwrite(os.path.join(folderName, str(fileNum) + '.png'), face_img)
       fileNum = fileNum + 1
     time.sleep(1)
