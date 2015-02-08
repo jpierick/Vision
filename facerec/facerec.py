@@ -112,5 +112,21 @@ print "Performing principal component analysis."
 pca = RandomizedPCA(n_components=maxImagesPerFolder, whiten=True).fit(trainingImages)
 pcaTrainingImages = pca.transform(trainingImages)
 
+# Load the test image
+testImages = np.zeros([1, height*width], dtype='int8')
+img = cv2.imread('1.png')
+img = cv2.cvtColor(img, cv2.cv.CV_RGB2GRAY)
+testImages[0,:] = img.flat
+
+for j, ref_pca in enumerate(pca.transform(testImages)):
+  distances = []
+  for i, test_pca in enumerate(pcaTrainingImages):
+    dist = math.sqrt(sum([diff**2 for diff in (ref_pca - test_pca)]))
+    distances.append((dist, trainingName[i]))
+
+  found_ID = min(distances)[1]
+  print "Identified (result: " + found_ID + " - dist - " + str(min(distances)[0]) + ")"
+
+
 quit(0)
 
