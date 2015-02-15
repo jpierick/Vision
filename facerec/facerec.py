@@ -11,10 +11,14 @@
 # * Ensure that each training subfolder has at least one image.
 # Change History:
 # 2015-02-02 JSP: Created.
+# 2015-02-14 JSP: Added configuration file.  Added histogram equalization (if
+#   desired) of training images.
 # ==============================================================================
 
 from sklearn.decomposition import RandomizedPCA
+import ConfigParser
 import cv2
+from decimal import *
 import glob
 import math
 import numpy as np
@@ -22,6 +26,19 @@ import os.path
 import string
 import sys
 import time
+
+# Read the configuraiton file:
+config = ConfigParser.SafeConfigParser()
+config.read('facerec.conf')
+
+imgHeight = int(config.get('Image Resolution', 'imgHeight'))
+imgWidth = int(config.get('Image Resolution', 'imgWidth'))
+performHistogram = config.get('Preprocessing Options', 'performHistogram')
+
+# The ratio between the desired image height and width is used to ensure
+# that a complete face is captured:
+imgHeightWidthRatio = Decimal(imgHeight) / Decimal(imgWidth)
+print "imgHeightWidthRatio = " + str(imgHeightWidthRatio)
 
 # Ensure that the training subfolder exists:
 if not os.path.isdir('training'):
@@ -32,8 +49,6 @@ if not os.path.isdir('training'):
 # to ensure that there is at least one training image.  If any of the images
 # have different dimensions than the others, then report the error and quit:
 imgTrainingCountTotal = 0
-height = 0
-width = 0
 depth = 0
 minImagesPerFolder = 0
 maxImagesPerFolder = 0
@@ -55,14 +70,15 @@ for folderName in os.listdir('training'):
 
         # Determine the images dimensions and ensure that they are the same
         # as all previous training images that have been read:
-        imgHeight, imgWidth, imgDepth = img.shape
-        if height == 0:
-          height = imgHeight
-          width = imgWidth
-          depth = imgDepth
-        elif imgHeight <> height or imgWidth <> width or imgDepth <> depth:
+        if img.shape[0] <> imgHeight or img.shape[1] <> imgWidth:
           print "File " + fileName + " in folder " + folderFullName + \
-            " has different dimensions than files previously read."
+            " does not have the correct dimensions.  "
+          if img.shape[0] <> imgHeight:
+            print "Height is " + str(img.shape[0]) + " instead of " + \
+              str(imgHeight)
+          if img.shape[1] <> imgWidth:
+            print "Width is " + str(img.shape[1]) + " instead of " + \
+              str(imgWidth)
           quit(1)
 
   # Track the minimum and maximum number of training images in all the 
@@ -84,7 +100,8 @@ print "Maximum number of training images for a subject: " + str(maxImagesPerFold
 
 # Create an array of flattened training images and a corresponding array of
 # names (the name associated with each corresponding training image):
-trainingImages = np.zeros([imgTrainingCountTotal, height * width], dtype='int8')
+trainingImages = np.zeros([imgTrainingCountTotal, imgHeight * imgWidth], \
+  dtype='int8')
 trainingName = []
 
 # Populate the arrays with the flattened training images:
@@ -106,6 +123,8 @@ for folderName in os.listdir('training'):
           quit(1)
 
         img = cv2.cvtColor(img, cv2.cv.CV_RGB2GRAY)
+        if performHistogram:
+          img = cv2.equalizeHist(img)
         trainingImages[imageNumber,:] = img.flat
         imageNumber = imageNumber + 1
     
@@ -147,7 +166,17 @@ while True:
 
   # Put a green box around all the faces that were found in the image:
   for (x, y, w, h) in faces:
-    cv2.rectangle(frame, (x,y), (x+w,y+h), (0,255,0), 2)
+    # The following calculations are used to increase the size and shape
+    # that surrounds the detected face.  Normally, the routine returns a
+    # perfect square that chops off the top of the head and the chin.  
+    # By increasing the height, we hope to increase the characteristics
+    # of the face for recognition puposes:
+    faceX1 = x
+    faceX2 = x + w
+    faceY1 = y - (h * ((imgHeightWidthRatio - 1) / 2))
+    faceY2 = y + h + (h * ((imgHeightWidthRatio - 1) / 2))
+
+    cv2.rectangle(frame, (faceX1,faceY1), (faceX2,faceY2), (0,255,0), 2)
     face_found = True
 
   cv2.imshow('Video', frame)
@@ -157,11 +186,18 @@ while True:
 
   if face_found == True:
     for (x, y, w, h) in faces:
-      face_img = gray[y:y+h, x:x+w]
-      face_img = cv2.resize(face_img, (100,100), interpolation=cv2.INTER_CUBIC)
-      face_img = cv2.equalizeHist(face_img)
+      faceX1 = x
+      faceX2 = x + w
+      faceY1 = int(y - (h * ((imgHeightWidthRatio - 1) / 2)))
+      faceY2 = int(y + h + (h * ((imgHeightWidthRatio - 1) / 2)))
 
-      testImages = np.zeros([1, 100*100], dtype='int8')
+      face_img = gray[faceY1:faceY2, faceX1:faceX2]
+      face_img = cv2.resize(face_img, (imgWidth,imgHeight), \
+        interpolation=cv2.INTER_CUBIC)
+      if performHistogram:
+        face_img = cv2.equalizeHist(face_img)
+
+      testImages = np.zeros([1, imgWidth*imgHeight], dtype='int8')
       testImages[0,:] = face_img.flat
 
       for j, ref_pca in enumerate(pca.transform(testImages)):

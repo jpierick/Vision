@@ -8,12 +8,29 @@
 #   unique image in a folder under the "training" folder.
 # Change History:
 # 2015-02-01 JSP: Created.
+# 2015-02-14 JSP: Added configuration file.  Removed histogram equalization of
+#   images; this will be done (if desired) in the facerec.py program when the
+#   training images are read.
 # ==============================================================================
 
+import ConfigParser
 import cv2
+from decimal import *
 import os.path
 import sys
 import time
+
+# Read the configuration file:
+config = ConfigParser.SafeConfigParser()
+config.read('facerec.conf')
+
+imgHeight = Decimal(config.get('Image Resolution', 'imgHeight'))
+imgWidth = Decimal(config.get('Image Resolution', 'imgWidth'))
+
+# The ratio between the desired image height and width is used to ensure
+# that a complete face is captured:
+imgHeightWidthRatio = imgHeight / imgWidth
+print "imgHeightWidthRatio = " + str(imgHeightWidthRatio)
 
 # Verify that the cascade file exists:
 cascPath = './haarcascade_frontalface_default.xml'
@@ -73,7 +90,17 @@ while True:
 
   # Put a green box around all the faces that were found in the image:
   for (x, y, w, h) in faces:
-    cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+    # The following calculations are used to increase the size and shape
+    # that surrounds the detected face.  Normally, the routine returns a
+    # perfect square that chops off the top of the head and the chin.  
+    # By increasing the height, we hope to increase the characteristics
+    # of the face for recognition puposes:
+    faceX1 = x
+    faceX2 = x + w
+    faceY1 = y - (h * ((imgHeightWidthRatio - 1) / 2))
+    faceY2 = y + h + (h * ((imgHeightWidthRatio - 1) / 2))
+    
+    cv2.rectangle(frame, (faceX1, faceY1), (faceX2, faceY2), (0, 255, 0), 2)
     face_found = True
 
   cv2.imshow('Video', frame)
@@ -82,9 +109,14 @@ while True:
 
   if face_found == True and key == ord('k'):
     for (x, y, w, h) in faces:
+      faceX1 = x
+      faceX2 = x + w
+      faceY1 = y - (h * ((imgHeightWidthRatio - 1) / 2))
+      faceY2 = y + h + (h * ((imgHeightWidthRatio - 1) / 2))
+
       face_img = gray[y:y+h, x:x+w]
-      face_img = cv2.resize(face_img, (100,100), interpolation=cv2.INTER_CUBIC)
-      face_img = cv2.equalizeHist(face_img)
+      face_img = gray[faceY1:faceY2, faceX1:faceX2]
+      face_img = cv2.resize(face_img, (imgWidth,imgHeight), interpolation=cv2.INTER_CUBIC)
       cv2.imwrite(os.path.join(folderName, str(fileNum) + '.png'), face_img)
       fileNum = fileNum + 1
     time.sleep(1)
